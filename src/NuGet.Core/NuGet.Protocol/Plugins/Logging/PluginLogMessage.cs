@@ -4,15 +4,12 @@
 using System;
 using System.Globalization;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Converters;
 using Newtonsoft.Json.Linq;
 
 namespace NuGet.Protocol.Plugins
 {
     internal abstract class PluginLogMessage : IPluginLogMessage
     {
-        private static readonly StringEnumConverter _enumConverter = new StringEnumConverter();
-
         private readonly DateTime _now;
 
         protected PluginLogMessage(DateTimeOffset now)
@@ -37,7 +34,8 @@ namespace NuGet.Protocol.Plugins
                 new JProperty("type", type),
                 new JProperty("message", message));
 
-            return outerMessage.ToString(Formatting.None, _enumConverter);
+            // Use the parameterless overload to avoid AOT warnings from the converter array overload
+            return outerMessage.ToString(Formatting.None);
         }
     }
 }

@@ -7,7 +7,8 @@ using System;
 using System.Globalization;
 using System.IO;
 using System.Linq;
-using Newtonsoft.Json;
+using System.Text.Encodings.Web;
+using System.Text.Json;
 using Newtonsoft.Json.Linq;
 using NuGet.Common;
 using NuGet.Frameworks;
@@ -123,36 +124,98 @@ namespace NuGet.ProjectModel
 
         public static void Write(Stream stream, PackagesLockFile lockFile)
         {
-#if NET5_0_OR_GREATER
-            using (var textWriter = new StreamWriter(stream))
-#else
-            using (var textWriter = new NoAllocNewLineStreamWriter(stream))
-#endif
-            {
-                Write(textWriter, lockFile);
-            }
+            WriteLockFileWithUtf8JsonWriter(stream, lockFile);
         }
 
         public static void Write(TextWriter textWriter, PackagesLockFile lockFile)
         {
-            using (var jsonWriter = new JsonTextWriter(textWriter))
+            // For TextWriter, we need to write to a MemoryStream first and then copy
+            using (var memoryStream = new MemoryStream())
             {
-                jsonWriter.Formatting = Formatting.Indented;
-
-                var json = WriteLockFile(lockFile);
-                json.WriteTo(jsonWriter);
+                WriteLockFileWithUtf8JsonWriter(memoryStream, lockFile);
+                memoryStream.Position = 0;
+                using (var reader = new StreamReader(memoryStream))
+                {
+                    textWriter.Write(reader.ReadToEnd());
+                }
             }
         }
 
-        private static JObject WriteLockFile(PackagesLockFile lockFile)
+        private static readonly JsonWriterOptions WriterOptions = new JsonWriterOptions
         {
-            var json = new JObject
-            {
-                [VersionProperty] = new JValue(lockFile.Version),
-                [DependenciesProperty] = JsonUtility.WriteObject(lockFile.Targets, WriteTarget),
-            };
+            Indented = true,
+            Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+        };
 
-            return json;
+        private static void WriteLockFileWithUtf8JsonWriter(Stream stream, PackagesLockFile lockFile)
+        {
+            using (var writer = new Utf8JsonWriter(stream, WriterOptions))
+            {
+                writer.WriteStartObject();
+                writer.WriteNumber(VersionProperty, lockFile.Version);
+
+                writer.WritePropertyName(DependenciesProperty);
+                writer.WriteStartObject();
+
+                foreach (var target in lockFile.Targets)
+                {
+                    writer.WritePropertyName(target.Name);
+                    writer.WriteStartObject();
+
+                    foreach (var dependency in target.Dependencies)
+                    {
+                        writer.WritePropertyName(dependency.Id);
+                        writer.WriteStartObject();
+
+                        writer.WriteString(TypeProperty, dependency.Type.ToString());
+
+                        if (dependency.RequestedVersion != null)
+                        {
+                            writer.WriteString(RequestedProperty, dependency.RequestedVersion.ToNormalizedString());
+                        }
+
+                        if (dependency.ResolvedVersion != null)
+                        {
+                            writer.WriteString(ResolvedProperty, dependency.ResolvedVersion.ToNormalizedString());
+                        }
+
+                        if (dependency.ContentHash != null)
+                        {
+                            writer.WriteString(ContentHashProperty, dependency.ContentHash);
+                        }
+
+                        if (dependency.Dependencies?.Count > 0)
+                        {
+                            writer.WritePropertyName(DependenciesProperty);
+                            writer.WriteStartObject();
+
+                            var ordered = dependency.Dependencies.OrderBy(dep => dep.Id, StringComparer.Ordinal);
+                            foreach (var dep in ordered)
+                            {
+                                if (dependency.Type == PackageDependencyType.Project)
+                                {
+                                    // Project dependencies use VersionRange format
+                                    writer.WriteString(dep.Id, dep.VersionRange?.ToNormalizedString() ?? string.Empty);
+                                }
+                                else
+                                {
+                                    // Package dependencies use legacy string format
+                                    writer.WriteString(dep.Id, dep.VersionRange?.ToLegacyShortString() ?? string.Empty);
+                                }
+                            }
+
+                            writer.WriteEndObject();
+                        }
+
+                        writer.WriteEndObject();
+                    }
+
+                    writer.WriteEndObject();
+                }
+
+                writer.WriteEndObject();
+                writer.WriteEndObject();
+            }
         }
 
         private static PackagesLockFileTarget ReadDependency(string property, JToken json)
@@ -208,48 +271,6 @@ namespace NuGet.ProjectModel
             dependency.ContentHash = JsonUtility.ReadProperty<string>(jObject, ContentHashProperty);
 
             return dependency;
-        }
-
-        private static JProperty WriteTarget(PackagesLockFileTarget target)
-        {
-            var json = JsonUtility.WriteObject(target.Dependencies, WriteTargetDependency);
-
-            var key = target.Name;
-
-            return new JProperty(key, json);
-        }
-
-        private static JProperty WriteTargetDependency(LockFileDependency dependency)
-        {
-            var json = new JObject
-            {
-                [TypeProperty] = dependency.Type.ToString()
-            };
-
-            if (dependency.RequestedVersion != null)
-            {
-                json[RequestedProperty] = dependency.RequestedVersion.ToNormalizedString();
-            }
-
-            if (dependency.ResolvedVersion != null)
-            {
-                json[ResolvedProperty] = dependency.ResolvedVersion.ToNormalizedString();
-            }
-
-            if (dependency.ContentHash != null)
-            {
-                json[ContentHashProperty] = dependency.ContentHash;
-            }
-
-            if (dependency.Dependencies?.Count > 0)
-            {
-                var ordered = dependency.Dependencies.OrderBy(dep => dep.Id, StringComparer.Ordinal);
-
-                json[DependenciesProperty] = JsonUtility.WriteObject(ordered, dependency.Type == PackageDependencyType.Project ?
-                    JsonUtility.WritePackageDependency : JsonUtility.WritePackageDependencyWithLegacyString);
-            }
-
-            return new JProperty(dependency.Id, json);
         }
 
     }

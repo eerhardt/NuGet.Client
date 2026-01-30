@@ -29,9 +29,9 @@ namespace NuGet.Protocol.Plugins
         {
             var message = new JObject(
                 new JProperty("request ID", _requestId),
-                new JProperty("method", _method),
-                new JProperty("type", _type),
-                new JProperty("state", _state));
+                new JProperty("method", _method.ToString()),
+                new JProperty("type", _type.ToString()),
+                new JProperty("state", _state.ToString()));
 
             if (_currentTaskId.HasValue)
             {

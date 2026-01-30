@@ -10,6 +10,11 @@
     <Description>NuGet's core types and interfaces for PackageReference-based restore, such as lock files, assets file and internal restore models.</Description>
   </PropertyGroup>
 
+  <!-- Suppress AOT-specific warnings for .NET Framework which doesn't support AOT -->
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net472'">
+    <NoWarn>$(NoWarn);SYSLIB1034</NoWarn>
+  </PropertyGroup>
+
   <PropertyGroup Condition=" '$(IsVsixBuild)' == 'true' ">
     <TargetFrameworks />
     <TargetFramework>$(NETFXTargetFramework)</TargetFramework>

@@ -37,6 +37,7 @@ namespace NuGet.ProjectModel
         public IList<string> ExpectedPackageFilePaths { get; set; }
 
         [JsonPropertyName("logs")]
+        [JsonConverter(typeof(AssetsLogMessageListConverter))]
         public IList<IAssetsLogMessage> LogMessages { get; set; }
 
         [JsonIgnore]

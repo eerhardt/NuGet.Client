@@ -7,6 +7,9 @@ using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
+#if NET5_0_OR_GREATER
+using System.Diagnostics.CodeAnalysis;
+#endif
 using System.IO;
 using System.Linq;
 using NuGet.Client;
@@ -822,7 +825,11 @@ namespace NuGet.Commands
         /// Clears a lock file group and replaces the first item with _._ if
         /// the group has items. Empty groups are left alone.
         /// </summary>
-        private static void ClearIfExists<T>(IList<T> group) where T : LockFileItem
+        private static void ClearIfExists<
+#if NET5_0_OR_GREATER
+            [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
+#endif
+            T>(IList<T> group) where T : LockFileItem
         {
             if (GroupHasNonEmptyItems(group))
             {

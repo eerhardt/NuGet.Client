@@ -13,9 +13,17 @@ namespace NuGet.ProjectModel
 {
     public class AssetsLogMessage : IAssetsLogMessage, IEquatable<IAssetsLogMessage>
     {
+#if NET8_0_OR_GREATER
+        [JsonConverter(typeof(JsonStringEnumConverter<NuGetLogCode>))]
+#else
         [JsonConverter(typeof(JsonStringEnumConverter))]
+#endif
         public NuGetLogCode Code { get; }
+#if NET8_0_OR_GREATER
+        [JsonConverter(typeof(JsonStringEnumConverter<LogLevel>))]
+#else
         [JsonConverter(typeof(JsonStringEnumConverter))]
+#endif
         public LogLevel Level { get; }
         public string Message { get; }
         public string ProjectPath { get; set; }
@@ -71,7 +79,7 @@ namespace NuGet.ProjectModel
         }
 
         [JsonConstructor]
-        private AssetsLogMessage(
+        internal AssetsLogMessage(
             LogLevel level,
             NuGetLogCode code,
             string message,

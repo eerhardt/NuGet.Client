@@ -29,7 +29,7 @@ namespace NuGet.Protocol.Plugins
         {
             var message = new JObject(
                 new JProperty("plugin ID", _pluginId),
-                new JProperty("state", _state));
+                new JProperty("state", _state.ToString()));
 
             if (_processId.HasValue)
             {
